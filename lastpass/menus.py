@@ -4,7 +4,7 @@ import lastpass
 
 class lastpassGTK:
     
-    def __init__(self):
+    def __init__(self, parentWidget):
 	items = [('pg-ok', '_LOG IN', 0, 0, None),
 		('pg-cancel', '_CANCEL', 0, 0, None),
 		('pg-drop', '_Drop', 0, 0, None),]
@@ -18,7 +18,7 @@ class lastpassGTK:
 	gtk.stock_add(items)
 	factory = gtk.IconFactory()
 	factory.add_default()
-	style= window.get_style()
+	style= parentWidget.get_style()
 	for new_stock, alias in aliases:
 	    icon_set = style.lookup_icon_set(alias)
 	    factory.add(new_stock, icon_set)
@@ -32,15 +32,22 @@ class lastpassGTK:
         self.password = ''
         self.loggedIn = False
         self.menu = gtk.Menu()
-	self.sites_menu = gtk.MenuItem("Sites")
-	self.secure_notes_menu = gtk.MenuItem("Secure Notes")
-	self.logoff_menu = gtk.MenuItem("Log Off")
-	menuList = [self.sites_menu, self.secure_notes_menu, self.logoff_menu]
+        self.menu.attach_to_widget(parentWidget, None)
+	self.sites_item = gtk.MenuItem("Sites")
+	self.secure_notes_item = gtk.MenuItem("Secure Notes")
+	self.logoff_item = gtk.MenuItem("Log Off")
+	self.sites_menu = gtk.Menu()
+	self.secure_notes_menu = gtk.Menu()
+	self.sites_item.set_submenu(self.sites_menu)
+	self.secure_notes_item.set_submenu(self.secure_notes_menu)
+	menuList = [self.sites_item, self.secure_notes_item, self.logoff_item]
 	for x in menuList:
 	  self.menu.append(x)
 	  x.show()
 	  
-	## Create Login frame
+	self.createLoginFrame()
+	  
+    def createLoginFrame(self):
 	self.loginWindow = gtk.Window(type=gtk.WINDOW_TOPLEVEL)
 	self.loginWindow.set_decorated(False)
 	self.loginVbox = gtk.VBox(False, 0)
@@ -92,6 +99,27 @@ class lastpassGTK:
     def loginClicked(self, widget, loginEntry, passEntry):
         self.username = loginEntry.get_text()
         self.password = passEntry.get_text()
+	vault = lastpass.Vault.open_remote(self.username, self.password)
+	groupMenuItems = {}
+	for i in vault.accounts:
+	  if i.group == "Secure Note":
+	    new_item = gtk.MenuItem(i.name)
+	    self.secure_notes_menu.append(new_item)
+	    new_item.show()
+	  else:
+	    if i.group not in groupMenuItems:
+	      groupMenuItems[i.group] = []
+	    groupMenuItems[i.group].append(i.name)
+	for groupName in groupMenuItems:
+	  group_item = gtk.MenuItem(groupName)
+	  group_menu = gtk.Menu()
+	  for i in groupMenuItems[groupName]:
+	    new_item = gtk.MenuItem(i)
+	    group_menu.append(new_item)
+	    new_item.show()
+	  group_item.set_submenu(group_menu)
+	  self.sites_menu.append(group_item)
+	  group_item.show()
         self.loggedIn = True
         self.cancelClicked(widget)
       
@@ -104,16 +132,15 @@ class lastpassGTK:
     def showLastpass(self, widget, event):
         print(event)
 	if event.type == gtk.gdk.BUTTON_PRESS:
-	    try:
-	      if self.loggedIn == True:
-		vault = lastpass.Vault.open_remote(self.username, self.password)
+	  # try:
+	     if self.loggedIn == True:
 		self.menu.popup(None, None, None, event.button, event.time)
 		return 'lastpass'
-	      else:
-		raise LastPassUnknownUsernameError
-	    except:
-	      self.loginWindow.set_position(gtk.WIN_POS_MOUSE)
-	      self.loginWindow.show()
+	     else:
+		#raise LastPassUnknownUsernameError
+	  # except:
+	        self.loginWindow.set_position(gtk.WIN_POS_MOUSE)
+	        self.loginWindow.show()
         
     
     
@@ -130,7 +157,7 @@ if __name__ == '__main__':
     #button.set_image(image)
     window.add(button)
     
-    lastPassMenu = lastpassGTK()
+    lastPassMenu = lastpassGTK(button)
     button.connect("event", lastPassMenu.showLastpass)
   
     button.show()
